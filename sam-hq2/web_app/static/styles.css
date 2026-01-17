@@ -226,6 +226,10 @@ button {
   border-radius: 12px;
   font-weight: 600;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transition: transform 0.2s ease, box-shadow 0.2s ease,
     background 0.2s ease;
 }
@@ -322,6 +326,7 @@ body[data-tool="box"] canvas {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -340,6 +345,17 @@ body[data-tool="box"] canvas {
 #downloadLink.disabled {
   pointer-events: none;
   opacity: 0.5;
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
 }
 
 .toggle,

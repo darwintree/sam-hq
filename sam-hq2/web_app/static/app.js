@@ -12,6 +12,7 @@ const undoBtn = document.getElementById("undoBtn");
 const redoBtn = document.getElementById("redoBtn");
 const deleteBtn = document.getElementById("deleteBtn");
 const clearBtn = document.getElementById("clearBtn");
+const clearAllBtn = document.getElementById("clearAllBtn");
 const clearBoxBtn = document.getElementById("clearBoxBtn");
 const resetViewBtn = document.getElementById("resetViewBtn");
 const zoomLabel = document.getElementById("zoomLabel");
@@ -81,6 +82,7 @@ function updateToolControls() {
   backgroundBtn.disabled = !hasImage;
   boxBtn.disabled = !hasImage;
   clearBtn.disabled = !hasImage || points.length === 0;
+  clearAllBtn.disabled = !hasImage || (points.length === 0 && !box);
   resetViewBtn.disabled = !hasImage;
 }
 
@@ -126,6 +128,15 @@ function clearResult() {
   maskToggle.disabled = true;
   maskOpacity.disabled = true;
   setResultVisibility(false);
+  drawImage();
+}
+
+function updateResultAfterEdit() {
+  if (points.length === 0 && !box) {
+    clearResult();
+    return;
+  }
+  runSegmentation("auto");
 }
 
 function getFitSize() {
@@ -422,12 +433,12 @@ function setTool(tool) {
   if (tool === "foreground") {
     currentLabel = 1;
     if (currentImage) {
-      status.textContent = "前景点模式：点击主体";
+      status.textContent = "保留点模式：点击要保留的区域";
     }
   } else if (tool === "background") {
     currentLabel = 0;
     if (currentImage) {
-      status.textContent = "背景点模式：点击要排除的区域";
+      status.textContent = "排除点模式：点击要排除的区域";
     }
   } else if (currentImage) {
     status.textContent = "框选模式：拖动绘制矩形框";
@@ -459,6 +470,7 @@ clearBtn.addEventListener("click", () => {
   updateProcessState();
   updateUndoRedo();
   updateToolControls();
+  updateResultAfterEdit();
   status.textContent = "已清除点，请重新选择";
 });
 
@@ -471,7 +483,20 @@ clearBoxBtn.addEventListener("click", () => {
   updateProcessState();
   updateBoxControls();
   updateToolControls();
+  updateResultAfterEdit();
   status.textContent = "已清除框，请重新选择";
+});
+
+clearAllBtn.addEventListener("click", () => {
+  if (points.length === 0 && !box) return;
+  pushHistory();
+  points = [];
+  box = null;
+  boxPreview = null;
+  selectedPointId = null;
+  refreshAfterChange();
+  clearResult();
+  status.textContent = "已清除点和框，请重新选择";
 });
 
 undoBtn.addEventListener("click", () => {
@@ -482,7 +507,7 @@ undoBtn.addEventListener("click", () => {
   box = previous.box;
   selectedPointId = null;
   refreshAfterChange();
-  runSegmentation("auto");
+  updateResultAfterEdit();
 });
 
 redoBtn.addEventListener("click", () => {
@@ -493,7 +518,7 @@ redoBtn.addEventListener("click", () => {
   box = next.box;
   selectedPointId = null;
   refreshAfterChange();
-  runSegmentation("auto");
+  updateResultAfterEdit();
 });
 
 deleteBtn.addEventListener("click", () => {
@@ -502,7 +527,7 @@ deleteBtn.addEventListener("click", () => {
   points = points.filter((point) => point.id !== selectedPointId);
   selectedPointId = null;
   refreshAfterChange();
-  runSegmentation("auto");
+  updateResultAfterEdit();
 });
 
 resetViewBtn.addEventListener("click", () => {
