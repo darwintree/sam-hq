@@ -7,10 +7,12 @@ const ctx = canvas.getContext("2d");
 const processBtn = document.getElementById("processBtn");
 const foregroundBtn = document.getElementById("foregroundBtn");
 const backgroundBtn = document.getElementById("backgroundBtn");
+const boxBtn = document.getElementById("boxBtn");
 const undoBtn = document.getElementById("undoBtn");
 const redoBtn = document.getElementById("redoBtn");
 const deleteBtn = document.getElementById("deleteBtn");
 const clearBtn = document.getElementById("clearBtn");
+const clearBoxBtn = document.getElementById("clearBoxBtn");
 const resetViewBtn = document.getElementById("resetViewBtn");
 const zoomLabel = document.getElementById("zoomLabel");
 const status = document.getElementById("status");
@@ -29,6 +31,7 @@ let history = [];
 let future = [];
 let selectedPointId = null;
 let nextPointId = 1;
+let currentTool = "foreground";
 let baseScale = 1;
 let viewScale = 1;
 let viewOffsetX = 0;
@@ -45,9 +48,21 @@ let inFlight = false;
 let requestSeq = 0;
 let resultUrl = null;
 let resultMaskImage = null;
+let box = null;
+let boxPreview = null;
+let isDrawingBox = false;
+const MIN_BOX_SIZE = 4;
 
 function clonePoints(source) {
   return source.map((point) => ({ ...point }));
+}
+
+function cloneBox(source) {
+  return source ? { ...source } : null;
+}
+
+function cloneState() {
+  return { points: clonePoints(points), box: cloneBox(box) };
 }
 
 function updateUndoRedo() {
@@ -57,16 +72,22 @@ function updateUndoRedo() {
 }
 
 function updateProcessState() {
-  processBtn.disabled = points.length === 0 || inFlight;
+  processBtn.disabled =
+    !currentImage || (points.length === 0 && !box) || inFlight;
+}
+
+function updateBoxControls() {
+  clearBoxBtn.disabled = !box;
 }
 
 function pushHistory() {
-  history.push(clonePoints(points));
+  history.push(cloneState());
   if (history.length > 50) {
     history.shift();
   }
   future = [];
   updateUndoRedo();
+  updateBoxControls();
 }
 
 function updateZoomLabel() {
@@ -110,6 +131,16 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function buildBoxFromPoints(start, end) {
+  const maxX = currentImage ? currentImage.naturalWidth : 0;
+  const maxY = currentImage ? currentImage.naturalHeight : 0;
+  const x1 = clamp(Math.min(start.x, end.x), 0, maxX);
+  const y1 = clamp(Math.min(start.y, end.y), 0, maxY);
+  const x2 = clamp(Math.max(start.x, end.x), 0, maxX);
+  const y2 = clamp(Math.max(start.y, end.y), 0, maxY);
+  return { x1, y1, x2, y2 };
+}
+
 function getCanvasCoords(event) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -140,7 +171,7 @@ function hitTestPoint(displayX, displayY) {
 async function runSegmentation(source) {
   if (inFlight) return;
   const file = fileInput.files[0];
-  if (!file || points.length === 0) return;
+  if (!file || (points.length === 0 && !box)) return;
   inFlight = true;
   const requestId = ++requestSeq;
   updateProcessState();
@@ -155,6 +186,9 @@ async function runSegmentation(source) {
     "labels",
     JSON.stringify(points.map((point) => point.label))
   );
+  if (box) {
+    formData.append("box", JSON.stringify([box.x1, box.y1, box.x2, box.y2]));
+  }
 
   try {
     const response = await fetch("/api/segment", {
@@ -215,6 +249,14 @@ function drawImage() {
     renderMaskOverlay();
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (box || boxPreview) {
+    if (box) {
+      drawBoxOutline(box, false);
+    }
+    if (boxPreview) {
+      drawBoxOutline(boxPreview, true);
+    }
+  }
   points.forEach((point) => {
     const display = toDisplayCoords(point.x, point.y);
     ctx.beginPath();
@@ -232,6 +274,19 @@ function drawImage() {
       ctx.stroke();
     }
   });
+}
+
+function drawBoxOutline(targetBox, dashed) {
+  const topLeft = toDisplayCoords(targetBox.x1, targetBox.y1);
+  const bottomRight = toDisplayCoords(targetBox.x2, targetBox.y2);
+  const width = bottomRight.x - topLeft.x;
+  const height = bottomRight.y - topLeft.y;
+  ctx.save();
+  ctx.strokeStyle = "#0ea5e9";
+  ctx.lineWidth = 2;
+  ctx.setLineDash(dashed ? [6, 4] : []);
+  ctx.strokeRect(topLeft.x, topLeft.y, width, height);
+  ctx.restore();
 }
 
 function updateMaskPreview() {
@@ -273,6 +328,27 @@ function refreshAfterChange() {
   drawImage();
   updateUndoRedo();
   updateProcessState();
+  updateBoxControls();
+}
+
+function finalizeBox() {
+  if (!boxPreview) return;
+  const width = Math.abs(boxPreview.x2 - boxPreview.x1);
+  const height = Math.abs(boxPreview.y2 - boxPreview.y1);
+  if (width < MIN_BOX_SIZE || height < MIN_BOX_SIZE) {
+    boxPreview = null;
+    isDrawingBox = false;
+    drawImage();
+    status.textContent = "框选太小，请重新拖动";
+    return;
+  }
+  pushHistory();
+  box = boxPreview;
+  boxPreview = null;
+  isDrawingBox = false;
+  refreshAfterChange();
+  status.textContent = "已添加框，点击生成";
+  runSegmentation("auto");
 }
 
 fileInput.addEventListener("change", (event) => {
@@ -286,11 +362,15 @@ fileInput.addEventListener("change", (event) => {
     future = [];
     selectedPointId = null;
     nextPointId = 1;
+    box = null;
+    boxPreview = null;
+    isDrawingBox = false;
     resetView();
     updateUndoRedo();
     updateProcessState();
+    updateBoxControls();
     drawImage();
-    status.textContent = "请在主体上点击（可添加多个前景/背景点）";
+    status.textContent = "请在主体上点击或拖出框（可添加多个前景/背景点）";
     resetViewBtn.disabled = false;
     // Default to showing the mask overlay once it becomes available.
     maskToggle.checked = true;
@@ -300,14 +380,35 @@ fileInput.addEventListener("change", (event) => {
   img.src = URL.createObjectURL(file);
 });
 
+function setTool(tool) {
+  currentTool = tool;
+  foregroundBtn.classList.toggle("active", tool === "foreground");
+  backgroundBtn.classList.toggle("active", tool === "background");
+  boxBtn.classList.toggle("active", tool === "box");
+  if (tool === "foreground") {
+    currentLabel = 1;
+    status.textContent = "前景点模式：点击主体";
+  } else if (tool === "background") {
+    currentLabel = 0;
+    status.textContent = "背景点模式：点击要排除的区域";
+  } else {
+    status.textContent = "框选模式：拖动绘制矩形框";
+  }
+  selectedPointId = null;
+  updateUndoRedo();
+  drawImage();
+}
+
 foregroundBtn.addEventListener("click", () => {
-  currentLabel = 1;
-  status.textContent = "前景点模式：点击主体";
+  setTool("foreground");
 });
 
 backgroundBtn.addEventListener("click", () => {
-  currentLabel = 0;
-  status.textContent = "背景点模式：点击要排除的区域";
+  setTool("background");
+});
+
+boxBtn.addEventListener("click", () => {
+  setTool("box");
 });
 
 clearBtn.addEventListener("click", () => {
@@ -321,10 +422,23 @@ clearBtn.addEventListener("click", () => {
   status.textContent = "已清除点，请重新选择";
 });
 
+clearBoxBtn.addEventListener("click", () => {
+  if (!box) return;
+  pushHistory();
+  box = null;
+  boxPreview = null;
+  drawImage();
+  updateProcessState();
+  updateBoxControls();
+  status.textContent = "已清除框，请重新选择";
+});
+
 undoBtn.addEventListener("click", () => {
   if (history.length === 0) return;
-  future.push(clonePoints(points));
-  points = history.pop();
+  future.push(cloneState());
+  const previous = history.pop();
+  points = previous.points;
+  box = previous.box;
   selectedPointId = null;
   refreshAfterChange();
   runSegmentation("auto");
@@ -332,8 +446,10 @@ undoBtn.addEventListener("click", () => {
 
 redoBtn.addEventListener("click", () => {
   if (future.length === 0) return;
-  history.push(clonePoints(points));
-  points = future.pop();
+  history.push(cloneState());
+  const next = future.pop();
+  points = next.points;
+  box = next.box;
   selectedPointId = null;
   refreshAfterChange();
   runSegmentation("auto");
@@ -389,6 +505,15 @@ canvas.addEventListener("pointerdown", (event) => {
     panOrigin = { x: viewOffsetX, y: viewOffsetY };
     return;
   }
+  if (currentTool === "box") {
+    const imageCoords = toImageCoords(x, y);
+    isDrawingBox = true;
+    boxPreview = buildBoxFromPoints(imageCoords, imageCoords);
+    selectedPointId = null;
+    updateUndoRedo();
+    drawImage();
+    return;
+  }
   if (hitId !== null) {
     selectedPointId = hitId;
     updateUndoRedo();
@@ -410,6 +535,15 @@ canvas.addEventListener("pointermove", (event) => {
   if (isPanning && panStart && panOrigin) {
     viewOffsetX = panOrigin.x + (x - panStart.x);
     viewOffsetY = panOrigin.y + (y - panStart.y);
+    drawImage();
+    return;
+  }
+  if (isDrawingBox && boxPreview) {
+    const imageCoords = toImageCoords(x, y);
+    boxPreview = buildBoxFromPoints(
+      { x: boxPreview.x1, y: boxPreview.y1 },
+      imageCoords
+    );
     drawImage();
     return;
   }
@@ -445,6 +579,10 @@ canvas.addEventListener("pointerup", (event) => {
     isPanning = false;
     panStart = null;
     panOrigin = null;
+    return;
+  }
+  if (isDrawingBox) {
+    finalizeBox();
     return;
   }
   if (isDraggingPoint) {

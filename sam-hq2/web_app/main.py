@@ -57,8 +57,9 @@ def index() -> FileResponse:
 @app.post("/api/segment")
 def segment_image(
     image: UploadFile = File(...),
-    points: str = Form(...),
-    labels: str = Form(...),
+    points: str = Form("[]"),
+    labels: str = Form("[]"),
+    box: str | None = Form(None),
 ) -> Response:
     if image.content_type not in {"image/png", "image/jpeg", "image/jpg", "image/webp"}:
         raise HTTPException(status_code=400, detail="Unsupported image type")
@@ -77,7 +78,7 @@ def segment_image(
     except json.JSONDecodeError as exc:
         raise HTTPException(status_code=400, detail="Invalid points payload") from exc
 
-    if not point_list or len(point_list) != len(label_list):
+    if len(point_list) != len(label_list):
         raise HTTPException(status_code=400, detail="Points and labels must align")
     for point in point_list:
         if len(point) != 2:
@@ -85,13 +86,41 @@ def segment_image(
         if not (0 <= point[0] <= width and 0 <= point[1] <= height):
             raise HTTPException(status_code=400, detail="Point must be inside the image")
 
+    box_coords = None
+    if box:
+        try:
+            box_payload = json.loads(box)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="Invalid box payload") from exc
+        if len(box_payload) != 4:
+            raise HTTPException(status_code=400, detail="Box must be [x1, y1, x2, y2]")
+        x1, y1, x2, y2 = box_payload
+        if x2 <= x1 or y2 <= y1:
+            raise HTTPException(
+                status_code=400,
+                detail="Box coordinates must define a valid rectangle",
+            )
+        if not (0 <= x1 <= width and 0 <= x2 <= width and 0 <= y1 <= height and 0 <= y2 <= height):
+            raise HTTPException(status_code=400, detail="Box must be inside the image")
+        box_coords = np.array([x1, y1, x2, y2], dtype=np.float32)
+
+    if not point_list and box_coords is None:
+        raise HTTPException(status_code=400, detail="Provide points or a box")
+
     predictor = get_predictor()
     with _predictor_lock:
         predictor.set_image(image_array)
+        point_coords = (
+            np.array(point_list, dtype=np.float32) if point_list else None
+        )
+        point_labels = (
+            np.array(label_list, dtype=np.int64) if point_list else None
+        )
         masks, scores, _ = predictor.predict(
-            point_coords=np.array(point_list, dtype=np.float32),
-            point_labels=np.array(label_list, dtype=np.int64),
-            multimask_output=True,
+            point_coords=point_coords,
+            point_labels=point_labels,
+            box=box_coords[None, :] if box_coords is not None else None,
+            multimask_output=not (box_coords is not None and not point_list),
         )
 
     best_index = int(np.argmax(scores))

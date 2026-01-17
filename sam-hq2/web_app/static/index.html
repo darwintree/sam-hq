@@ -9,7 +9,7 @@
   <body>
     <h1>HQ-SAM2 背景抠除 Demo</h1>
     <p class="hint">
-      上传图片后，在主体上添加绿色前景点；若需要排除区域，可添加红色背景点。
+      上传图片后，可用点或框指定主体，绿色为前景、红色为背景。
     </p>
 
     <div class="layout">
@@ -21,6 +21,7 @@
         <div class="controls">
           <button id="foregroundBtn" type="button">前景点模式</button>
           <button id="backgroundBtn" type="button">背景点模式</button>
+          <button id="boxBtn" type="button">框选模式</button>
           <div class="button-row">
             <button id="undoBtn" type="button" disabled>撤销</button>
             <button id="redoBtn" type="button" disabled>重做</button>
@@ -28,6 +29,7 @@
           <div class="button-row">
             <button id="deleteBtn" type="button" disabled>删除选中点</button>
             <button id="clearBtn" type="button">清除所有点</button>
+            <button id="clearBoxBtn" type="button" disabled>清除框</button>
           </div>
           <div class="button-row">
             <button id="resetViewBtn" type="button" disabled>重置视图</button>
