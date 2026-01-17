@@ -16,8 +16,6 @@ const zoomLabel = document.getElementById("zoomLabel");
 const status = document.getElementById("status");
 const resultImage = document.getElementById("resultImage");
 const downloadLink = document.getElementById("downloadLink");
-const maskCanvas = document.getElementById("maskCanvas");
-const maskCtx = maskCanvas.getContext("2d");
 const maskToggle = document.getElementById("maskToggle");
 const maskOpacity = document.getElementById("maskOpacity");
 
@@ -212,6 +210,10 @@ function drawImage() {
     viewOffsetY
   );
   ctx.drawImage(currentImage, 0, 0);
+  if (maskToggle.checked && resultMaskImage) {
+    // Overlay a solid-color mask on the original image.
+    renderMaskOverlay();
+  }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   points.forEach((point) => {
     const display = toDisplayCoords(point.x, point.y);
@@ -233,35 +235,38 @@ function drawImage() {
 }
 
 function updateMaskPreview() {
-  if (!currentImage || !resultMaskImage || !maskToggle.checked) {
-    maskCanvas.hidden = true;
-    resultImage.hidden = false;
-    return;
-  }
-  // Render a solid-color mask using the result alpha.
-  const { width, height } = getFitSize();
-  maskCanvas.hidden = false;
-  resultImage.hidden = true;
-  maskCanvas.width = width;
-  maskCanvas.height = height;
-  maskBuffer.width = width;
-  maskBuffer.height = height;
+  drawImage();
+}
 
-  maskCtx.setTransform(1, 0, 0, 1, 0, 0);
-  maskCtx.clearRect(0, 0, width, height);
-  maskCtx.drawImage(currentImage, 0, 0, width, height);
+function renderMaskOverlay() {
+  if (!currentImage || !resultMaskImage) return;
+  // Render a solid-color mask using the result alpha.
+  const naturalWidth = resultMaskImage.naturalWidth || currentImage.naturalWidth;
+  const naturalHeight =
+    resultMaskImage.naturalHeight || currentImage.naturalHeight;
+  maskBuffer.width = naturalWidth;
+  maskBuffer.height = naturalHeight;
 
   maskBufferCtx.setTransform(1, 0, 0, 1, 0, 0);
-  maskBufferCtx.clearRect(0, 0, width, height);
-  maskBufferCtx.drawImage(resultMaskImage, 0, 0, width, height);
+  maskBufferCtx.clearRect(0, 0, naturalWidth, naturalHeight);
+  maskBufferCtx.drawImage(resultMaskImage, 0, 0, naturalWidth, naturalHeight);
   maskBufferCtx.globalCompositeOperation = "source-in";
   maskBufferCtx.fillStyle = "#22c55e";
-  maskBufferCtx.fillRect(0, 0, width, height);
+  maskBufferCtx.fillRect(0, 0, naturalWidth, naturalHeight);
   maskBufferCtx.globalCompositeOperation = "source-over";
 
-  maskCtx.globalAlpha = Number(maskOpacity.value);
-  maskCtx.drawImage(maskBuffer, 0, 0);
-  maskCtx.globalAlpha = 1;
+  ctx.save();
+  ctx.setTransform(
+    baseScale * viewScale,
+    0,
+    0,
+    baseScale * viewScale,
+    viewOffsetX,
+    viewOffsetY
+  );
+  ctx.globalAlpha = Number(maskOpacity.value);
+  ctx.drawImage(maskBuffer, 0, 0);
+  ctx.restore();
 }
 
 function refreshAfterChange() {
@@ -287,11 +292,10 @@ fileInput.addEventListener("change", (event) => {
     drawImage();
     status.textContent = "请在主体上点击（可添加多个前景/背景点）";
     resetViewBtn.disabled = false;
-    maskToggle.checked = false;
+    // Default to showing the mask overlay once it becomes available.
+    maskToggle.checked = true;
     maskToggle.disabled = true;
     maskOpacity.disabled = true;
-    maskCanvas.hidden = true;
-    resultImage.hidden = false;
   };
   img.src = URL.createObjectURL(file);
 });

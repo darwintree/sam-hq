@@ -43,14 +43,8 @@
         <div class="canvas-wrap">
           <canvas id="imageCanvas"></canvas>
         </div>
-      </section>
-
-      <section class="card result">
-        <h3>结果预览</h3>
-        <img id="resultImage" alt="输出 PNG" />
-        <canvas id="maskCanvas" hidden></canvas>
         <label class="toggle">
-          <input type="checkbox" id="maskToggle" disabled />
+          <input type="checkbox" id="maskToggle" checked disabled />
           显示遮罩预览
         </label>
         <label class="range">
@@ -65,6 +59,11 @@
             disabled
           />
         </label>
+      </section>
+
+      <section class="card result">
+        <h3>结果预览</h3>
+        <img id="resultImage" alt="输出 PNG" />
         <a id="downloadLink" download="output.png">下载 PNG</a>
       </section>
     </div>
