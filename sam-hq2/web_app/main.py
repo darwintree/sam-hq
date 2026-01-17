@@ -26,6 +26,7 @@ CHECKPOINT_PATH = os.environ.get(
     "SAM2_CHECKPOINT",
     "checkpoints/sam2.1_hq_hiera_large.pt",
 )
+DEVICE = os.environ.get("SAM2_DEVICE", "cuda")
 
 app = FastAPI(title="HQ-SAM2 Background Remover")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -42,7 +43,7 @@ def get_predictor() -> SAM2ImagePredictor:
             raise FileNotFoundError(
                 "SAM2 checkpoint not found. Set SAM2_CHECKPOINT to a valid file."
             )
-        model = build_sam2(MODEL_CFG, str(checkpoint))
+        model = build_sam2(MODEL_CFG, str(checkpoint), device=DEVICE)
         _predictor = SAM2ImagePredictor(model)
     return _predictor
 

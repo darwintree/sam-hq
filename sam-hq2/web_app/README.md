@@ -22,6 +22,12 @@ export SAM2_CHECKPOINT="/absolute/path/to/sam-hq2/checkpoints/sam2.1_hq_hiera_la
 export SAM2_MODEL_CFG="configs/sam2.1/sam2.1_hq_hiera_l.yaml"
 ```
 
+可选：指定运行设备（默认 `cuda`）：
+
+```bash
+export SAM2_DEVICE=cpu
+```
+
 ## 运行
 
 ```bash
