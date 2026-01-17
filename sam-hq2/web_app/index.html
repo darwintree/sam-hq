@@ -75,7 +75,9 @@
   </head>
   <body>
     <h1>HQ-SAM2 背景抠除 Demo</h1>
-    <p class="hint">上传图片后，在主体上点击一次作为提示点。</p>
+    <p class="hint">
+      上传图片后，在主体上添加绿色前景点；若需要排除区域，可添加红色背景点。
+    </p>
 
     <div class="layout">
       <section class="card controls">
@@ -83,12 +85,17 @@
           选择图片
           <input type="file" id="fileInput" accept="image/*" />
         </label>
+        <div class="controls">
+          <button id="foregroundBtn" type="button">前景点模式</button>
+          <button id="backgroundBtn" type="button">背景点模式</button>
+          <button id="clearBtn" type="button">清除所有点</button>
+        </div>
         <button id="processBtn" disabled>生成透明 PNG</button>
         <p class="status" id="status">等待图片...</p>
       </section>
 
       <section class="card">
-        <h3>点击主体位置</h3>
+        <h3>点击主体/背景位置</h3>
         <div class="canvas-wrap">
           <canvas id="imageCanvas"></canvas>
         </div>
@@ -106,13 +113,17 @@
       const canvas = document.getElementById("imageCanvas");
       const ctx = canvas.getContext("2d");
       const processBtn = document.getElementById("processBtn");
+      const foregroundBtn = document.getElementById("foregroundBtn");
+      const backgroundBtn = document.getElementById("backgroundBtn");
+      const clearBtn = document.getElementById("clearBtn");
       const status = document.getElementById("status");
       const resultImage = document.getElementById("resultImage");
       const downloadLink = document.getElementById("downloadLink");
 
       let currentImage = null;
-      let clickPoint = null;
+      let points = [];
       let scaleFactor = 1;
+      let currentLabel = 1;
 
       function drawImage() {
         if (!currentImage) {
@@ -127,15 +138,15 @@
         canvas.height = height;
         scaleFactor = currentImage.naturalWidth / width;
         ctx.drawImage(currentImage, 0, 0, width, height);
-        if (clickPoint) {
+        points.forEach((point) => {
           ctx.beginPath();
-          ctx.arc(clickPoint.displayX, clickPoint.displayY, 6, 0, Math.PI * 2);
-          ctx.fillStyle = "#ef4444";
+          ctx.arc(point.displayX, point.displayY, 6, 0, Math.PI * 2);
+          ctx.fillStyle = point.label === 1 ? "#22c55e" : "#ef4444";
           ctx.fill();
           ctx.strokeStyle = "white";
           ctx.lineWidth = 2;
           ctx.stroke();
-        }
+        });
       }
 
       fileInput.addEventListener("change", (event) => {
@@ -144,12 +155,29 @@
         const img = new Image();
         img.onload = () => {
           currentImage = img;
-          clickPoint = null;
+          points = [];
           drawImage();
-          status.textContent = "请在主体上点击";
+          status.textContent = "请在主体上点击（可添加多个前景/背景点）";
           processBtn.disabled = true;
         };
         img.src = URL.createObjectURL(file);
+      });
+
+      foregroundBtn.addEventListener("click", () => {
+        currentLabel = 1;
+        status.textContent = "前景点模式：点击主体";
+      });
+
+      backgroundBtn.addEventListener("click", () => {
+        currentLabel = 0;
+        status.textContent = "背景点模式：点击要排除的区域";
+      });
+
+      clearBtn.addEventListener("click", () => {
+        points = [];
+        drawImage();
+        processBtn.disabled = true;
+        status.textContent = "已清除点，请重新选择";
       });
 
       canvas.addEventListener("click", (event) => {
@@ -157,26 +185,33 @@
         const rect = canvas.getBoundingClientRect();
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
-        clickPoint = {
+        points.push({
           displayX: x,
           displayY: y,
           originalX: x * scaleFactor,
           originalY: y * scaleFactor,
-        };
+          label: currentLabel,
+        });
         drawImage();
-        processBtn.disabled = false;
-        status.textContent = "已选择主体点，点击生成";
+        processBtn.disabled = points.length === 0;
+        status.textContent = "已添加点，点击生成";
       });
 
       processBtn.addEventListener("click", async () => {
         const file = fileInput.files[0];
-        if (!file || !clickPoint) return;
+        if (!file || points.length === 0) return;
         processBtn.disabled = true;
         status.textContent = "正在处理...";
         const formData = new FormData();
         formData.append("image", file);
-        formData.append("point_x", clickPoint.originalX.toFixed(2));
-        formData.append("point_y", clickPoint.originalY.toFixed(2));
+        formData.append(
+          "points",
+          JSON.stringify(points.map((point) => [point.originalX, point.originalY]))
+        );
+        formData.append(
+          "labels",
+          JSON.stringify(points.map((point) => point.label))
+        );
 
         try {
           const response = await fetch("/api/segment", {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 from pathlib import Path
 from threading import Lock
@@ -53,8 +54,8 @@ def index() -> HTMLResponse:
 @app.post("/api/segment")
 def segment_image(
     image: UploadFile = File(...),
-    point_x: float = Form(...),
-    point_y: float = Form(...),
+    points: str = Form(...),
+    labels: str = Form(...),
 ) -> Response:
     if image.content_type not in {"image/png", "image/jpeg", "image/jpg", "image/webp"}:
         raise HTTPException(status_code=400, detail="Unsupported image type")
@@ -67,15 +68,26 @@ def segment_image(
 
     image_array = np.array(pil_image)
     height, width = image_array.shape[:2]
-    if not (0 <= point_x <= width and 0 <= point_y <= height):
-        raise HTTPException(status_code=400, detail="Point must be inside the image")
+    try:
+        point_list = json.loads(points)
+        label_list = json.loads(labels)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid points payload") from exc
+
+    if not point_list or len(point_list) != len(label_list):
+        raise HTTPException(status_code=400, detail="Points and labels must align")
+    for point in point_list:
+        if len(point) != 2:
+            raise HTTPException(status_code=400, detail="Each point must be [x, y]")
+        if not (0 <= point[0] <= width and 0 <= point[1] <= height):
+            raise HTTPException(status_code=400, detail="Point must be inside the image")
 
     predictor = get_predictor()
     with _predictor_lock:
         predictor.set_image(image_array)
         masks, scores, _ = predictor.predict(
-            point_coords=np.array([[point_x, point_y]]),
-            point_labels=np.array([1]),
+            point_coords=np.array(point_list, dtype=np.float32),
+            point_labels=np.array(label_list, dtype=np.int64),
             multimask_output=True,
         )
 

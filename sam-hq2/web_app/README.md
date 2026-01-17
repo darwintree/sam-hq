@@ -1,6 +1,6 @@
 # HQ-SAM2 Background Remover Web App
 
-这个应用基于 `SAM2ImagePredictor`，提供上传图片 + 点击主体点的方式，生成透明背景 PNG。
+这个应用基于 `SAM2ImagePredictor`，提供上传图片 + 点击前景/背景点的方式，生成透明背景 PNG。
 
 ## 准备模型权重
 
@@ -28,4 +28,4 @@ export SAM2_MODEL_CFG="configs/sam2.1/sam2.1_hq_hiera_l.yaml"
 uvicorn sam-hq2.web_app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-访问 `http://localhost:8000`，上传图片并点击主体即可生成透明 PNG。
+访问 `http://localhost:8000`，上传图片并点击主体与背景点即可生成透明 PNG。
