@@ -54,6 +54,7 @@ let resultMaskImage = null;
 let box = null;
 let boxPreview = null;
 let isDrawingBox = false;
+let boxStart = null;
 const MIN_BOX_SIZE = 4;
 
 document.body.dataset.tool = currentTool;
@@ -385,6 +386,7 @@ function finalizeBox() {
   if (width < MIN_BOX_SIZE || height < MIN_BOX_SIZE) {
     boxPreview = null;
     isDrawingBox = false;
+    boxStart = null;
     drawImage();
     status.textContent = "框选太小，请重新拖动";
     return;
@@ -393,6 +395,7 @@ function finalizeBox() {
   box = boxPreview;
   boxPreview = null;
   isDrawingBox = false;
+  boxStart = null;
   refreshAfterChange();
   status.textContent = "已添加框，点击生成";
   runSegmentation("auto");
@@ -412,6 +415,7 @@ fileInput.addEventListener("change", (event) => {
     box = null;
     boxPreview = null;
     isDrawingBox = false;
+    boxStart = null;
     resetView();
     updateUndoRedo();
     updateProcessState();
@@ -479,6 +483,7 @@ clearBoxBtn.addEventListener("click", () => {
   pushHistory();
   box = null;
   boxPreview = null;
+  boxStart = null;
   drawImage();
   updateProcessState();
   updateBoxControls();
@@ -493,6 +498,7 @@ clearAllBtn.addEventListener("click", () => {
   points = [];
   box = null;
   boxPreview = null;
+  boxStart = null;
   selectedPointId = null;
   refreshAfterChange();
   clearResult();
@@ -577,6 +583,7 @@ canvas.addEventListener("pointerdown", (event) => {
   if (currentTool === "box") {
     const imageCoords = toImageCoords(x, y);
     isDrawingBox = true;
+    boxStart = imageCoords;
     boxPreview = buildBoxFromPoints(imageCoords, imageCoords);
     selectedPointId = null;
     updateUndoRedo();
@@ -610,7 +617,7 @@ canvas.addEventListener("pointermove", (event) => {
   if (isDrawingBox && boxPreview) {
     const imageCoords = toImageCoords(x, y);
     boxPreview = buildBoxFromPoints(
-      { x: boxPreview.x1, y: boxPreview.y1 },
+      boxStart || { x: boxPreview.x1, y: boxPreview.y1 },
       imageCoords
     );
     drawImage();
@@ -655,6 +662,7 @@ canvas.addEventListener("pointerup", (event) => {
   }
   if (isDrawingBox) {
     finalizeBox();
+    boxStart = null;
     return;
   }
   if (isDraggingPoint) {
