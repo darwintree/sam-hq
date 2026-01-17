@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HQ-SAM2 Background Remover</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <h1>HQ-SAM2 背景抠除 Demo</h1>
+    <p class="hint">
+      上传图片后，在主体上添加绿色前景点；若需要排除区域，可添加红色背景点。
+    </p>
+
+    <div class="layout">
+      <section class="card controls">
+        <label>
+          选择图片
+          <input type="file" id="fileInput" accept="image/*" />
+        </label>
+        <div class="controls">
+          <button id="foregroundBtn" type="button">前景点模式</button>
+          <button id="backgroundBtn" type="button">背景点模式</button>
+          <div class="button-row">
+            <button id="undoBtn" type="button" disabled>撤销</button>
+            <button id="redoBtn" type="button" disabled>重做</button>
+          </div>
+          <div class="button-row">
+            <button id="deleteBtn" type="button" disabled>删除选中点</button>
+            <button id="clearBtn" type="button">清除所有点</button>
+          </div>
+          <div class="button-row">
+            <button id="resetViewBtn" type="button" disabled>重置视图</button>
+            <span id="zoomLabel">100%</span>
+          </div>
+        </div>
+        <button id="processBtn" disabled>生成透明 PNG</button>
+        <p class="status" id="status">等待图片...</p>
+      </section>
+
+      <section class="card">
+        <h3>点击主体/背景位置</h3>
+        <div class="canvas-wrap">
+          <canvas id="imageCanvas"></canvas>
+        </div>
+      </section>
+
+      <section class="card result">
+        <h3>结果预览</h3>
+        <img id="resultImage" alt="输出 PNG" />
+        <canvas id="maskCanvas" hidden></canvas>
+        <label class="toggle">
+          <input type="checkbox" id="maskToggle" disabled />
+          显示遮罩预览
+        </label>
+        <label class="range">
+          透明度
+          <input
+            type="range"
+            id="maskOpacity"
+            min="0"
+            max="1"
+            step="0.05"
+            value="0.6"
+            disabled
+          />
+        </label>
+        <a id="downloadLink" download="output.png">下载 PNG</a>
+      </section>
+    </div>
+
+    <script defer src="/static/app.js"></script>
+  </body>
+</html>

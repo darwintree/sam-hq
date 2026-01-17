@@ -8,13 +8,15 @@ from threading import Lock
 
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from sam2.build_sam import build_sam2
 from sam2.sam2_image_predictor import SAM2ImagePredictor
 
 APP_ROOT = Path(__file__).resolve().parent
-INDEX_PATH = APP_ROOT / "index.html"
+STATIC_DIR = APP_ROOT / "static"
+INDEX_PATH = STATIC_DIR / "index.html"
 
 MODEL_CFG = os.environ.get(
     "SAM2_MODEL_CFG",
@@ -26,6 +28,7 @@ CHECKPOINT_PATH = os.environ.get(
 )
 
 app = FastAPI(title="HQ-SAM2 Background Remover")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 _predictor: SAM2ImagePredictor | None = None
 _predictor_lock = Lock()
@@ -44,11 +47,11 @@ def get_predictor() -> SAM2ImagePredictor:
     return _predictor
 
 
-@app.get("/", response_class=HTMLResponse)
-def index() -> HTMLResponse:
+@app.get("/")
+def index() -> FileResponse:
     if not INDEX_PATH.exists():
         raise HTTPException(status_code=500, detail="index.html not found")
-    return HTMLResponse(INDEX_PATH.read_text(encoding="utf-8"))
+    return FileResponse(INDEX_PATH)
 
 
 @app.post("/api/segment")
