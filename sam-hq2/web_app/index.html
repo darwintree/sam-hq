@@ -124,6 +124,51 @@
       let points = [];
       let scaleFactor = 1;
       let currentLabel = 1;
+      let inFlight = false;
+      let requestSeq = 0;
+
+      async function runSegmentation(source) {
+        if (inFlight) return;
+        const file = fileInput.files[0];
+        if (!file || points.length === 0) return;
+        inFlight = true;
+        const requestId = ++requestSeq;
+        processBtn.disabled = true;
+        status.textContent =
+          source === "auto" ? "正在预览..." : "正在处理...";
+        const formData = new FormData();
+        formData.append("image", file);
+        formData.append(
+          "points",
+          JSON.stringify(points.map((point) => [point.originalX, point.originalY]))
+        );
+        formData.append(
+          "labels",
+          JSON.stringify(points.map((point) => point.label))
+        );
+
+        try {
+          const response = await fetch("/api/segment", {
+            method: "POST",
+            body: formData,
+          });
+          if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(detail || "服务器出错");
+          }
+          const blob = await response.blob();
+          if (requestId !== requestSeq) return;
+          const url = URL.createObjectURL(blob);
+          resultImage.src = url;
+          downloadLink.href = url;
+          status.textContent = "完成";
+        } catch (error) {
+          status.textContent = `处理失败：${error.message}`;
+        } finally {
+          inFlight = false;
+          processBtn.disabled = false;
+        }
+      }
 
       function drawImage() {
         if (!currentImage) {
@@ -195,43 +240,12 @@
         drawImage();
         processBtn.disabled = points.length === 0;
         status.textContent = "已添加点，点击生成";
+        // 自动预览：每次添加点后立即请求生成
+        runSegmentation("auto");
       });
 
       processBtn.addEventListener("click", async () => {
-        const file = fileInput.files[0];
-        if (!file || points.length === 0) return;
-        processBtn.disabled = true;
-        status.textContent = "正在处理...";
-        const formData = new FormData();
-        formData.append("image", file);
-        formData.append(
-          "points",
-          JSON.stringify(points.map((point) => [point.originalX, point.originalY]))
-        );
-        formData.append(
-          "labels",
-          JSON.stringify(points.map((point) => point.label))
-        );
-
-        try {
-          const response = await fetch("/api/segment", {
-            method: "POST",
-            body: formData,
-          });
-          if (!response.ok) {
-            const detail = await response.text();
-            throw new Error(detail || "服务器出错");
-          }
-          const blob = await response.blob();
-          const url = URL.createObjectURL(blob);
-          resultImage.src = url;
-          downloadLink.href = url;
-          status.textContent = "完成";
-        } catch (error) {
-          status.textContent = `处理失败：${error.message}`;
-        } finally {
-          processBtn.disabled = false;
-        }
+        runSegmentation("manual");
       });
     </script>
   </body>
