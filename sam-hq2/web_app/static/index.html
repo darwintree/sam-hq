@@ -7,68 +7,99 @@
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
-    <h1>HQ-SAM2 背景抠除 Demo</h1>
-    <p class="hint">
-      上传图片后，可用点或框指定主体，绿色为前景、红色为背景。
-    </p>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <h1>HQ-SAM2 背景抠除 Demo</h1>
+          <p class="hint">
+            上传图片后，可用点或框指定主体，绿色为前景、红色为背景。
+          </p>
+        </div>
+        <div class="hero-tip">
+          <span class="pill">操作提示</span>
+          <p>滚轮缩放；按住 Shift/中键拖动平移，右键也可平移。</p>
+        </div>
+      </header>
 
-    <div class="layout">
-      <section class="card controls">
-        <label>
-          选择图片
-          <input type="file" id="fileInput" accept="image/*" />
-        </label>
-        <div class="controls">
-          <button id="foregroundBtn" type="button">前景点模式</button>
-          <button id="backgroundBtn" type="button">背景点模式</button>
-          <button id="boxBtn" type="button">框选模式</button>
-          <div class="button-row">
-            <button id="undoBtn" type="button" disabled>撤销</button>
-            <button id="redoBtn" type="button" disabled>重做</button>
+      <div class="layout">
+      <section class="card workspace">
+        <div class="card-header">
+          <h2>操作与标注</h2>
+          <p>先上传图片，再点选前景/背景或框选。</p>
+        </div>
+        <div class="workspace-body">
+          <div class="workspace-controls">
+            <label class="file-picker">
+              <span>选择图片</span>
+              <input type="file" id="fileInput" accept="image/*" />
+            </label>
+            <div class="control-group">
+              <div class="group-title">标注模式</div>
+              <div class="segmented">
+                <button id="foregroundBtn" type="button" class="active" disabled>
+                  前景点
+                </button>
+                <button id="backgroundBtn" type="button" disabled>背景点</button>
+                <button id="boxBtn" type="button" disabled>框选</button>
+              </div>
+            </div>
+            <div class="control-group">
+              <div class="group-title">编辑</div>
+              <div class="button-row">
+                <button id="undoBtn" type="button" disabled>撤销</button>
+                <button id="redoBtn" type="button" disabled>重做</button>
+                <button id="deleteBtn" type="button" disabled>删除选中点</button>
+                <button id="clearBtn" type="button" disabled>清除所有点</button>
+                <button id="clearBoxBtn" type="button" disabled>清除框</button>
+              </div>
+            </div>
+            <div class="control-group">
+              <div class="group-title">视图</div>
+              <div class="button-row">
+                <button id="resetViewBtn" type="button" disabled>重置视图</button>
+                <span id="zoomLabel">100%</span>
+              </div>
+            </div>
+            <button id="processBtn" class="primary" disabled>生成透明 PNG</button>
+            <p class="status" id="status">等待图片...</p>
           </div>
-          <div class="button-row">
-            <button id="deleteBtn" type="button" disabled>删除选中点</button>
-            <button id="clearBtn" type="button">清除所有点</button>
-            <button id="clearBoxBtn" type="button" disabled>清除框</button>
-          </div>
-          <div class="button-row">
-            <button id="resetViewBtn" type="button" disabled>重置视图</button>
-            <span id="zoomLabel">100%</span>
+          <div class="workspace-canvas">
+            <p class="subtle">
+              点击添加点；拖动点可微调；框选用于快速圈定主体范围。
+            </p>
+            <div class="canvas-wrap">
+              <canvas id="imageCanvas"></canvas>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="maskToggle" checked disabled />
+              显示遮罩预览
+            </label>
+            <label class="range">
+              透明度
+              <input
+                type="range"
+                id="maskOpacity"
+                min="0"
+                max="1"
+                step="0.05"
+                value="0.6"
+                disabled
+              />
+            </label>
           </div>
         </div>
-        <button id="processBtn" disabled>生成透明 PNG</button>
-        <p class="status" id="status">等待图片...</p>
-      </section>
-
-      <section class="card">
-        <h3>点击主体/背景位置</h3>
-        <div class="canvas-wrap">
-          <canvas id="imageCanvas"></canvas>
-        </div>
-        <label class="toggle">
-          <input type="checkbox" id="maskToggle" checked disabled />
-          显示遮罩预览
-        </label>
-        <label class="range">
-          透明度
-          <input
-            type="range"
-            id="maskOpacity"
-            min="0"
-            max="1"
-            step="0.05"
-            value="0.6"
-            disabled
-          />
-        </label>
       </section>
 
       <section class="card result">
-        <h3>结果预览</h3>
+        <h2>结果预览</h2>
+        <div class="result-placeholder" id="resultPlaceholder">
+          结果会在此显示，支持下载透明 PNG。
+        </div>
         <img id="resultImage" alt="输出 PNG" />
         <a id="downloadLink" download="output.png">下载 PNG</a>
       </section>
-    </div>
+      </div>
+    </main>
 
     <script defer src="/static/app.js"></script>
   </body>

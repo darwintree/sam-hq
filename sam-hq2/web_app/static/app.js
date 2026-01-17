@@ -17,9 +17,11 @@ const resetViewBtn = document.getElementById("resetViewBtn");
 const zoomLabel = document.getElementById("zoomLabel");
 const status = document.getElementById("status");
 const resultImage = document.getElementById("resultImage");
+const resultPlaceholder = document.getElementById("resultPlaceholder");
 const downloadLink = document.getElementById("downloadLink");
 const maskToggle = document.getElementById("maskToggle");
 const maskOpacity = document.getElementById("maskOpacity");
+const canvasWrap = document.querySelector(".canvas-wrap");
 
 const maskBuffer = document.createElement("canvas");
 const maskBufferCtx = maskBuffer.getContext("2d");
@@ -53,6 +55,8 @@ let boxPreview = null;
 let isDrawingBox = false;
 const MIN_BOX_SIZE = 4;
 
+document.body.dataset.tool = currentTool;
+
 function clonePoints(source) {
   return source.map((point) => ({ ...point }));
 }
@@ -69,6 +73,15 @@ function updateUndoRedo() {
   undoBtn.disabled = history.length === 0;
   redoBtn.disabled = future.length === 0;
   deleteBtn.disabled = selectedPointId === null;
+}
+
+function updateToolControls() {
+  const hasImage = Boolean(currentImage);
+  foregroundBtn.disabled = !hasImage;
+  backgroundBtn.disabled = !hasImage;
+  boxBtn.disabled = !hasImage;
+  clearBtn.disabled = !hasImage || points.length === 0;
+  resetViewBtn.disabled = !hasImage;
 }
 
 function updateProcessState() {
@@ -92,6 +105,27 @@ function pushHistory() {
 
 function updateZoomLabel() {
   zoomLabel.textContent = `${Math.round(viewScale * 100)}%`;
+}
+
+function setResultVisibility(hasResult) {
+  resultImage.hidden = !hasResult;
+  resultPlaceholder.hidden = hasResult;
+  downloadLink.classList.toggle("disabled", !hasResult);
+  downloadLink.setAttribute("aria-disabled", String(!hasResult));
+}
+
+function clearResult() {
+  if (resultUrl) {
+    URL.revokeObjectURL(resultUrl);
+    resultUrl = null;
+  }
+  resultImage.removeAttribute("src");
+  downloadLink.removeAttribute("href");
+  resultMaskImage = null;
+  maskToggle.checked = true;
+  maskToggle.disabled = true;
+  maskOpacity.disabled = true;
+  setResultVisibility(false);
 }
 
 function getFitSize() {
@@ -175,7 +209,7 @@ async function runSegmentation(source) {
   inFlight = true;
   const requestId = ++requestSeq;
   updateProcessState();
-  status.textContent = source === "auto" ? "正在预览..." : "正在处理...";
+  status.textContent = source === "auto" ? "正在更新预览..." : "正在处理...";
   const formData = new FormData();
   formData.append("image", file);
   formData.append(
@@ -207,6 +241,7 @@ async function runSegmentation(source) {
     resultUrl = URL.createObjectURL(blob);
     resultImage.src = resultUrl;
     downloadLink.href = resultUrl;
+    setResultVisibility(true);
     resultMaskImage = new Image();
     resultMaskImage.onload = () => {
       updateMaskPreview();
@@ -215,7 +250,7 @@ async function runSegmentation(source) {
     maskToggle.disabled = false;
     maskOpacity.disabled = false;
     updateMaskPreview();
-    status.textContent = "完成";
+    status.textContent = source === "auto" ? "预览已更新" : "完成";
   } catch (error) {
     status.textContent = `处理失败：${error.message}`;
   } finally {
@@ -329,6 +364,7 @@ function refreshAfterChange() {
   updateUndoRedo();
   updateProcessState();
   updateBoxControls();
+  updateToolControls();
 }
 
 function finalizeBox() {
@@ -369,33 +405,36 @@ fileInput.addEventListener("change", (event) => {
     updateUndoRedo();
     updateProcessState();
     updateBoxControls();
+    updateToolControls();
     drawImage();
     status.textContent = "请在主体上点击或拖出框（可添加多个前景/背景点）";
-    resetViewBtn.disabled = false;
-    // Default to showing the mask overlay once it becomes available.
-    maskToggle.checked = true;
-    maskToggle.disabled = true;
-    maskOpacity.disabled = true;
+    clearResult();
   };
   img.src = URL.createObjectURL(file);
 });
 
 function setTool(tool) {
   currentTool = tool;
+  document.body.dataset.tool = tool;
   foregroundBtn.classList.toggle("active", tool === "foreground");
   backgroundBtn.classList.toggle("active", tool === "background");
   boxBtn.classList.toggle("active", tool === "box");
   if (tool === "foreground") {
     currentLabel = 1;
-    status.textContent = "前景点模式：点击主体";
+    if (currentImage) {
+      status.textContent = "前景点模式：点击主体";
+    }
   } else if (tool === "background") {
     currentLabel = 0;
-    status.textContent = "背景点模式：点击要排除的区域";
-  } else {
+    if (currentImage) {
+      status.textContent = "背景点模式：点击要排除的区域";
+    }
+  } else if (currentImage) {
     status.textContent = "框选模式：拖动绘制矩形框";
   }
   selectedPointId = null;
   updateUndoRedo();
+  updateToolControls();
   drawImage();
 }
 
@@ -419,6 +458,7 @@ clearBtn.addEventListener("click", () => {
   drawImage();
   updateProcessState();
   updateUndoRedo();
+  updateToolControls();
   status.textContent = "已清除点，请重新选择";
 });
 
@@ -430,6 +470,7 @@ clearBoxBtn.addEventListener("click", () => {
   drawImage();
   updateProcessState();
   updateBoxControls();
+  updateToolControls();
   status.textContent = "已清除框，请重新选择";
 });
 
@@ -503,6 +544,9 @@ canvas.addEventListener("pointerdown", (event) => {
     isPanning = true;
     panStart = { x, y };
     panOrigin = { x: viewOffsetX, y: viewOffsetY };
+    if (canvasWrap) {
+      canvasWrap.classList.add("is-panning");
+    }
     return;
   }
   if (currentTool === "box") {
@@ -579,6 +623,9 @@ canvas.addEventListener("pointerup", (event) => {
     isPanning = false;
     panStart = null;
     panOrigin = null;
+    if (canvasWrap) {
+      canvasWrap.classList.remove("is-panning");
+    }
     return;
   }
   if (isDrawingBox) {
@@ -614,3 +661,6 @@ canvas.addEventListener("pointerup", (event) => {
 processBtn.addEventListener("click", async () => {
   runSegmentation("manual");
 });
+
+setResultVisibility(false);
+updateToolControls();
