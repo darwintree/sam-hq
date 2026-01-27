@@ -10,16 +10,18 @@
 bash sam-hq2/checkpoints/download_ckpts.sh
 ```
 
-将权重路径配置给环境变量（示例）：
+配置权重路径和配置文件
 
 ```bash
 export SAM2_CHECKPOINT="/absolute/path/to/sam-hq2/checkpoints/sam2.1_hq_hiera_large.pt"
+export SAM2_MODEL_CFG="configs/sam2.1/sam2.1_hq_hiera_l.yaml"
 ```
 
-可选：调整模型配置文件：
+也可以配置 sam2.1 的权重
 
 ```bash
-export SAM2_MODEL_CFG="configs/sam2.1/sam2.1_hq_hiera_l.yaml"
+export SAM2_CHECKPOINT="/absolute/path/to/sam-hq2/checkpoints/sam2.1_hiera_small.pt"
+export SAM2_MODEL_CFG="configs/sam2.1/sam2.1_hiera_s.yaml"
 ```
 
 可选：指定运行设备（默认 `cuda`）：
@@ -31,7 +33,7 @@ export SAM2_DEVICE=cpu
 ## 运行
 
 ```bash
-uvicorn sam-hq2.web_app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 访问 `http://localhost:8000`，上传图片并点击主体与背景点即可生成透明 PNG。
